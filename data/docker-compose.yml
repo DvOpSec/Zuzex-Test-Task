@@ -1,0 +1,80 @@
+version: '3'
+services:
+  db:
+    image: mysql:5.7
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    environment:
+      - MYSQL_DATABASE=${WORDPRESS_DB_NAME}
+      - MYSQL_USER=${WORDPRESS_DB_USER}
+      - MYSQL_PASSWORD=${WORDPRESS_DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    ports:
+      - 3306:3306  
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      interval: 30s
+      retries: 3
+
+  wordpress:
+    depends_on:
+      - db
+    image: wordpress:5.8.1
+    ports:
+      - '4000:80'
+    volumes:
+      - ./data/wp:/var/www/html
+    environment:
+      - WORDPRESS_DB_HOST=db
+      - WORDPRESS_DB_NAME=${WORDPRESS_DB_NAME}
+      - WORDPRESS_DB_USER=${WORDPRESS_DB_USER}
+      - WORDPRESS_DB_PASSWORD=${WORDPRESS_DB_PASSWORD}
+
+  phpmyadmin:
+    depends_on:
+      - db
+    image: phpmyadmin/phpmyadmin:5.1.1
+    ports:
+      - '4001:80'
+    environment:
+      - PMA_HOST=db
+      - PMA_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - PMA_ABSOLUTE_URI=/phpmyadmin
+
+  nginx:
+    image: nginx:1.25.1
+    network_mode: host
+    volumes:
+      - ./data/nginx/nginx.conf:/etc/nginx/nginx.conf    
+      - ./data/nginx/mime.types:/etc/nginx/mime.types
+
+  grafana:
+    image: grafana/grafana:10.0.1
+    ports:
+      - '3000:3000'
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD}
+      - GF_SERVER_ROOT_URL=http://localhost:3000/grafana/
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./data/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--web.enable-lifecycle'
+    depends_on:
+      - node_exporter
+
+  node_exporter:
+    image: prom/node-exporter:v1.6.0
+    ports:
+      - '9100:9100'    
+
+
